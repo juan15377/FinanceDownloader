@@ -1,6 +1,10 @@
 import flet as ft
 from data_downloader import FinanceRecorder, MyDate, MyPeriod # classes
-from data_downloader import save_financial_data
+from data_downloader import save_financial_data, compress_dataframe, decompress_dataframe
+
+
+
+
 
 class PeriodSelector(ft.Dropdown):
     
@@ -19,7 +23,7 @@ class PeriodSelector(ft.Dropdown):
 class TableFinancialRecorders(ft.Container):
     
     def __init__(self):
-        self.financial_dfs_downloaded = {}
+        self.financial_dfs_downloaded_compressed = {}
         self.financial_recorders = []
         self.buttons_downloaded = []
         table = ft.DataTable(
@@ -92,14 +96,14 @@ class TableFinancialRecorders(ft.Container):
         button_delete.on_click = delete_financial_recorder
         
         
-        def update_financial_recorder(e, fr = financial_recorder):
+        def download_financial_recorder(e, fr = financial_recorder):
             # part encarged of add fr in the table and in financial_recorders
-            self.financial_dfs_downloaded[fr] = fr.download()
+            self.financial_dfs_downloaded_compressed[fr.symbol] = compress_dataframe(fr.download())
             button_download.icon = ft.icons.CHECK
             button_download.update()
             pass
         
-        button_download.on_click = update_financial_recorder
+        button_download.on_click = download_financial_recorder
         self.buttons_downloaded.append(button_download)
         
         self.table.rows.append(
@@ -127,7 +131,10 @@ class NewFinancialRecorder(ft.Row):
         button_add = ft.TextButton(text = "Añadir")
         
         def add_to_table(e, table = table):
-            table.add(FinanceRecorder(symbol_textfiled.value, MyDate(start_date_textfiled.value), MyDate(end_date_textfiled.value), MyPeriod(period.value)))
+            table.add(FinanceRecorder(symbol_textfiled.value, 
+                                      MyDate(start_date_textfiled.value), 
+                                      MyDate(end_date_textfiled.value), 
+                                      MyPeriod(period.value)))
             table.table.update()
         button_add.on_click = add_to_table
 
@@ -149,7 +156,7 @@ class ButtonsSaveFinanceRecorder(ft.Container):
         
         def save_data(e, table = table):
             nombre = "hola.xlsx"
-            save_financial_data(nombre, table.financial_recorders)
+            save_financial_data(nombre, table.financial_dfs_downloaded_compressed)
             # aqui se puede guardar los datos en un archivo, base de datos, etc...
             pass 
         

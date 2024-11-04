@@ -1,5 +1,8 @@
 import yfinance as yf
 import pandas as pd 
+import pickle
+import gzip
+import io
 
 class MyDate():
     def __init__(self, date: str) -> None:
@@ -22,9 +25,23 @@ class FinanceRecorder():
         data.index = data.index.tz_localize(None)
         return data
 
-def save_financial_data(path_file: str, financialrecorders: list):
+
+def compress_dataframe(df):
+    buffer = io.BytesIO()
+    with gzip.GzipFile(fileobj=buffer, mode='wb') as f:
+        pickle.dump(df, f)
+    return buffer.getvalue()
+
+def decompress_dataframe(df_compressed):
+    # Crear un buffer de BytesIO con los datos comprimidos
+    buffer = io.BytesIO(df_compressed)
+    
+    # Descomprimir y cargar el DataFrame
+    with gzip.GzipFile(fileobj=buffer, mode='rb') as f:
+        return pickle.load(f)
+    
+def save_financial_data(path_file: str, dict_financial_df_compressed: dict):
     with pd.ExcelWriter(path_file) as writer:
-        for r in financialrecorders:
-            data = r.download()
-            name = r.symbol
-            data.to_excel(writer, sheet_name=name)
+        for (name_symbol, df_compressed) in dict_financial_df_compressed.items():
+            data = decompress_dataframe(df_compressed)
+            data.to_excel(writer, sheet_name=name_symbol)
