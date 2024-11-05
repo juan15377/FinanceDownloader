@@ -1,9 +1,59 @@
 import flet as ft
-from data_downloader import FinanceRecorder, MyDate, MyPeriod # classes
-from data_downloader import save_financial_data, compress_dataframe, decompress_dataframe
+from Downloader import FinanceRecorder, MyDate, MyPeriod  # clases
+from Downloader import save_financial_data, compress_dataframe, decompress_dataframe
+
+import socket
+import time as tm
+import threading
 
 
 
+from flet import (
+    ElevatedButton,
+    FilePicker,
+    FilePickerResultEvent,
+    Page,
+    Row,
+    Text,
+    icons,
+)
+def check_internet():
+    try:
+        # Intento de conexión al servidor de Google DNS
+        socket.create_connection(("8.8.8.8", 53), timeout=5)
+        return True
+    except OSError:
+        return False
+
+
+class WifiActiveIcon(ft.Container):
+    
+    def __init__(self):
+        self.icon_wifi = ft.Icon(ft.icons.WIFI_CALLING)
+        self.status_text = ft.Text("Conectado")
+        
+        super().__init__(
+            content=ft.Row(
+                controls=[self.status_text, self.icon_wifi]
+            )
+        )
+
+        # Crear y ejecutar el hilo en segundo plano para actualizar el icono
+        threading.Thread(target=self.monitor_connection, daemon=True).start()
+
+    def monitor_connection(self):
+        """Verifica la conexión periódicamente y actualiza el ícono."""
+        while True:
+            tm.sleep(0.5)
+            if check_internet():
+                self.icon_wifi.name = ft.icons.SIGNAL_WIFI_4_BAR
+                self.status_text.value = "Conectado"
+            else:
+                self.icon_wifi.name = ft.icons.WIFI_CALLING
+                self.status_text.value = "Desconectado"
+            
+            # Actualizar el componente en pantalla
+            self.update()
 
 
 class PeriodSelector(ft.Dropdown):
@@ -23,6 +73,7 @@ class PeriodSelector(ft.Dropdown):
 class TableFinancialRecorders(ft.Container):
     
     def __init__(self):
+        self.rows_financial_recorders = {}
         self.financial_dfs_downloaded_compressed = {}
         self.financial_recorders = []
         self.buttons_downloaded = []
@@ -37,7 +88,10 @@ class TableFinancialRecorders(ft.Container):
             ],
             width=700,
             height=1000,
+            horizontal_lines = ft.Border.bottom,
+            vertical_lines= ft.Border.top
             )
+        
         self.table = table
         column_scrolling = ft.Column(controls = [table],
                                    height = 300,
@@ -51,14 +105,15 @@ class TableFinancialRecorders(ft.Container):
                                    scroll=ft.ScrollMode.ALWAYS,            
                               )
         super().__init__(content = row_scrolling,
+                         ink = True,
+                         bgcolor = ft.colors.BLUE                     
                          )
         
         
-    def update(self):
-        self.table.rows = []
-        for r in self.financial_recorders:
-            self.add(r)
-        self.table.update() # the table
+    def update_financial_recorders(self):
+        self.table.rows = list(self.rows_financial_recorders.values())
+        self.table.update()
+        
         
     def restart(self):
         self.financial_dfs_downloaded = {}
@@ -66,9 +121,14 @@ class TableFinancialRecorders(ft.Container):
         self.table.update()
 
     def remove(self, financial_recorder):
-        self.financial_recorders.remove(financial_recorder)        
+        self.financial_recorders.remove(financial_recorder)       
+        try :
+            del self.financial_dfs_downloaded_compressed[financial_recorder]
+            del self.rows_financial_recorders[financial_recorder]
+        except KeyError:
+            pass  # financial_recorder no se encuentra en financial_dfs_downloaded, no se hace nada 
         #volvemos a actualizar todos los nuevos 
-        self.update()
+        self.update_financial_recorders()
 
         pass 
     
@@ -87,28 +147,27 @@ class TableFinancialRecorders(ft.Container):
         def delete_financial_recorder(e, fr = financial_recorder):
             # part encarged of delete fr in the table and in financial_recorders 
             self.remove(fr)
-            try :
-                del self.financial_dfs_downloaded[fr]
-            except KeyError:
-                pass  # fr no se encuentra en financial_dfs_downloaded, no se hace nada
-            self.update()
+            del self.rows_financial_recorders[fr]
+            self.update_financial_recorders()
             
         button_delete.on_click = delete_financial_recorder
         
         
-        def download_financial_recorder(e, fr = financial_recorder):
+        def download_financial_recorder(e, fr = financial_recorder, bd = button_download):
             # part encarged of add fr in the table and in financial_recorders
-            self.financial_dfs_downloaded_compressed[fr.symbol] = compress_dataframe(fr.download())
-            button_download.icon = ft.icons.CHECK
-            button_download.update()
+            data = fr.download()
+            print(data)
+            self.financial_dfs_downloaded_compressed[fr] = compress_dataframe(data)
+            bd.icon = ft.icons.CHECK
+            print("Icono actualizado")
+            bd.update()
             pass
         
         button_download.on_click = download_financial_recorder
         self.buttons_downloaded.append(button_download)
         
-        self.table.rows.append(
-            ft.DataRow(
-                    cells=[
+        self.rows_financial_recorders[financial_recorder] = ft.DataRow(
+                cells=[
                         ft.DataCell(ft.Text(financial_recorder.symbol)),
                         ft.DataCell(ft.Text(financial_recorder.start_date.date)),
                         ft.DataCell(ft.Text(financial_recorder.end_date.date)),
@@ -116,8 +175,9 @@ class TableFinancialRecorders(ft.Container):
                         ft.DataCell(button_download),
                         ft.DataCell(button_delete),
                     ]
-            )
         )
+        
+        self.update_financial_recorders()
         
         
 class NewFinancialRecorder(ft.Row):
@@ -137,6 +197,8 @@ class NewFinancialRecorder(ft.Row):
                                       MyPeriod(period.value)))
             table.table.update()
         button_add.on_click = add_to_table
+        
+        wifi_icon = WifiActiveIcon()
 
         super().__init__(controls = [
             symbol_textfiled,
@@ -144,44 +206,71 @@ class NewFinancialRecorder(ft.Row):
             end_date_textfiled,
             period,
             button_add,
+            wifi_icon
         ])
         
         
 class ButtonsSaveFinanceRecorder(ft.Container):
     
-    def __init__(self, table:TableFinancialRecorders):
-        save_button = ft.TextButton(text = "Guardar")
+    def __init__(self, table:TableFinancialRecorders, page : ft.Page):
         reset_button = ft.TextButton(text = "Reiniciar")
         
-        
-        def save_data(e, table = table):
-            nombre = "hola.xlsx"
-            save_financial_data(nombre, table.financial_dfs_downloaded_compressed)
-            # aqui se puede guardar los datos en un archivo, base de datos, etc...
-            pass 
-        
-        save_button.on_click = save_data
-        
-        self.table = table
-        super().__init__(save_button)
-        
-    
+        def save_file_result(e: FilePickerResultEvent):
+            save_file_path.value = e.path if e.path else "Cancelled!"
+            path_name = save_file_path.value  + ".xlsx"
+            print(path_name)
+            save_financial_data(path_name, table.financial_dfs_downloaded_compressed)
+            
+            ### aqui va el codigo para guardar 
+
+        save_file_dialog = FilePicker(on_result=save_file_result)
+        save_file_path = Text()
+
+        # Open directory dialog
+        def get_directory_result(e: FilePickerResultEvent):
+            directory_path.value = e.path if e.path else "Cancelled!"
+            directory_path.update()
+
+        get_directory_dialog = FilePicker(on_result=get_directory_result)
+        directory_path = Text()
+
+        # hide all dialogs in overlay
+        page.overlay.extend([save_file_dialog, get_directory_dialog])
+
+        super().__init__(
+            content = ElevatedButton(
+                        "Save file",
+                        icon=icons.SAVE,
+                        on_click=lambda _: save_file_dialog.save_file(),
+                        disabled=page.web,
+                    )
+        )
+
 
         
 import flet as ft
 import time as tm 
 
 def main(page: ft.Page):
+    page.expand = False
     table_financial_recorders = TableFinancialRecorders()
-    guardador = ButtonsSaveFinanceRecorder(table_financial_recorders)
+    table_financial_recorders.financial_recorders = [
+        FinanceRecorder("AAPL", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d")),
+        FinanceRecorder("GOOGL", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d")),
+        FinanceRecorder("MSFT", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d"))  
+    ]
+    guardador = ButtonsSaveFinanceRecorder(table_financial_recorders, page)
     hola = NewFinancialRecorder(table_financial_recorders)
     page.add(hola, table_financial_recorders, guardador)
+    table_financial_recorders.update_financial_recorders()
+    table_financial_recorders.table.update()
+    
     
     table_financial_recorders.table.update()
     
     tm.sleep(20)
     
-    table_financial_recorders.download_all()
+    #table_financial_recorders.download_all()
 
 
 
