@@ -23,8 +23,6 @@ class FinanceRecorder():
         # No se utiliza el periodo aquí, ya que se usan las fechas start y end
          
         data = yf.download(self.symbol, start=self.start_date.date, end=self.end_date.date)
-        if data.empty:
-            return None 
         data.index = data.index.tz_localize(None)
         return data
 
@@ -49,7 +47,5 @@ def save_financial_data(path_file: str, dict_financial_df_compressed: dict):
     with pd.ExcelWriter(path_file) as writer:
         for (fr, df_compressed) in dict_financial_df_compressed.items():
             name_symbol = fr.symbol
-            print(name_symbol)
             data = decompress_dataframe(df_compressed)
-            print(data)
             data.to_excel(writer, sheet_name=name_symbol)

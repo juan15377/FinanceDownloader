@@ -49,7 +49,7 @@ class WifiActiveIcon(ft.Container):
                 self.icon_wifi.name = ft.icons.SIGNAL_WIFI_4_BAR
                 self.status_text.value = "Conectado"
             else:
-                self.icon_wifi.name = ft.icons.WIFI_CALLING
+                self.icon_wifi.name = ft.icons.SIGNAL_WIFI_0_BAR
                 self.status_text.value = "Desconectado"
             
             # Actualizar el componente en pantalla
@@ -65,8 +65,8 @@ class PeriodSelector(ft.Dropdown):
                     ft.dropdown.Option("1w"),
                     ft.dropdown.Option("1y"),
                     ],
-                    width = 120,
-                    height= 60)
+                    width = 120
+                    )
     pass
 
 
@@ -79,17 +79,27 @@ class TableFinancialRecorders(ft.Container):
         self.buttons_downloaded = []
         table = ft.DataTable(
             columns=[
-                ft.DataColumn(ft.Text("Symbol")),
-                ft.DataColumn(ft.Text("Fecha Inicio")),
-                ft.DataColumn(ft.Text("Fecha Final")),
-                ft.DataColumn(ft.Text("Periodo")),
-                ft.DataColumn(ft.Text("Descargar")),
-                ft.DataColumn(ft.Text("Eliminar")),
+                ft.DataColumn(ft.Text("Symbol"      , size = 15)),
+                ft.DataColumn(ft.Text("Fecha Inicio", size = 15)),
+                ft.DataColumn(ft.Text("Fecha Final" , size = 15)),
+                ft.DataColumn(ft.Text("Periodo"     , size = 15)),
+                ft.DataColumn(ft.Text("Descargar"   , size = 15)),
+                ft.DataColumn(ft.Text("Eliminar"    , size = 15)),
             ],
             width=700,
             height=1000,
-            horizontal_lines = ft.Border.bottom,
-            vertical_lines= ft.Border.top
+
+            bgcolor="gray",
+            border=ft.border.all(2, "red"),
+            border_radius=10,
+            vertical_lines=ft.BorderSide(3, "blue"),
+            horizontal_lines=ft.BorderSide(1, "green"),
+            sort_column_index=0,
+            sort_ascending=True,
+            heading_row_color=ft.colors.BLACK12,
+            data_row_color={ft.ControlState.HOVERED: "0x30FF0000"},
+            show_checkbox_column=True,
+            divider_thickness=0,
             )
         
         self.table = table
@@ -97,7 +107,7 @@ class TableFinancialRecorders(ft.Container):
                                    height = 300,
                                    width = 700,
                                    scroll=ft.ScrollMode.ALWAYS,
-                                   expand=True)
+                                   expand=False)
         
         row_scrolling = ft.Row(controls = [column_scrolling],
                                    height = 300,
@@ -106,7 +116,11 @@ class TableFinancialRecorders(ft.Container):
                               )
         super().__init__(content = row_scrolling,
                          ink = True,
-                         bgcolor = ft.colors.BLUE                     
+                         theme=ft.Theme(color_scheme_seed=ft.colors.INDIGO),
+                         theme_mode=ft.ThemeMode.DARK,
+                         bgcolor=ft.colors.SURFACE_VARIANT,
+                         padding=10,
+                         border_radius=10
                          )
         
         
@@ -153,14 +167,18 @@ class TableFinancialRecorders(ft.Container):
         button_delete.on_click = delete_financial_recorder
         
         
-        def download_financial_recorder(e, fr = financial_recorder, bd = button_download):
+        def download_financial_recorder(e, fr = financial_recorder, button_download = button_download,
+                                                                    button_delete = button_delete):
             # part encarged of add fr in the table and in financial_recorders
             data = fr.download()
-            print(data)
+            if data.empty:
+                button_download.icon = ft.icons.ERROR
+                button_download.on_click = None
+                button_download.update()
+                return None 
             self.financial_dfs_downloaded_compressed[fr] = compress_dataframe(data)
-            bd.icon = ft.icons.CHECK
-            print("Icono actualizado")
-            bd.update()
+            button_download.icon = ft.icons.CHECK
+            button_download.update()
             pass
         
         button_download.on_click = download_financial_recorder
@@ -179,8 +197,7 @@ class TableFinancialRecorders(ft.Container):
         
         self.update_financial_recorders()
         
-        
-class NewFinancialRecorder(ft.Row):
+class NewFinancialRecorder(ft.Container):
     
     def __init__(self, table:TableFinancialRecorders):
         symbol_textfiled = ft.TextField(label = "Symbol", height=60, width = 120)
@@ -188,7 +205,7 @@ class NewFinancialRecorder(ft.Row):
         end_date_textfiled = ft.TextField(label = "Fecha Final", height=60, width = 120)
         period = PeriodSelector()
         
-        button_add = ft.TextButton(text = "Añadir")
+        button_add = ft.FilledButton(text = "Añadir")
         
         def add_to_table(e, table = table):
             table.add(FinanceRecorder(symbol_textfiled.value, 
@@ -200,14 +217,17 @@ class NewFinancialRecorder(ft.Row):
         
         wifi_icon = WifiActiveIcon()
 
-        super().__init__(controls = [
+        super().__init__(
+            content = ft.Row(controls = [
             symbol_textfiled,
             start_date_textfiled,
             end_date_textfiled,
             period,
             button_add,
             wifi_icon
-        ])
+            ]
+            ),
+            bgcolor=ft.colors.WHITE12)
         
         
 class ButtonsSaveFinanceRecorder(ft.Container):
@@ -216,15 +236,14 @@ class ButtonsSaveFinanceRecorder(ft.Container):
         reset_button = ft.TextButton(text = "Reiniciar")
         
         def save_file_result(e: FilePickerResultEvent):
-            save_file_path.value = e.path if e.path else "Cancelled!"
-            path_name = save_file_path.value  + ".xlsx"
-            print(path_name)
+            save_file_path = e.path if e.path else "Null"
+            path_name = save_file_path  + ".xlsx"
             save_financial_data(path_name, table.financial_dfs_downloaded_compressed)
             
             ### aqui va el codigo para guardar 
 
         save_file_dialog = FilePicker(on_result=save_file_result)
-        save_file_path = Text()
+        save_file_path = ""
 
         # Open directory dialog
         def get_directory_result(e: FilePickerResultEvent):
@@ -251,24 +270,23 @@ class ButtonsSaveFinanceRecorder(ft.Container):
 import flet as ft
 import time as tm 
 
+
 def main(page: ft.Page):
     page.expand = False
     table_financial_recorders = TableFinancialRecorders()
-    table_financial_recorders.financial_recorders = [
-        FinanceRecorder("AAPL", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d")),
-        FinanceRecorder("GOOGL", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d")),
-        FinanceRecorder("MSFT", MyDate("2021-01-01"), MyDate("2021-12-31"), MyPeriod("1d"))  
-    ]
     guardador = ButtonsSaveFinanceRecorder(table_financial_recorders, page)
     hola = NewFinancialRecorder(table_financial_recorders)
-    page.add(hola, table_financial_recorders, guardador)
+    todo = ft.Column(
+        controls = [
+            hola, 
+            table_financial_recorders, 
+            guardador
+        ],
+        expand=False
+    )
+    page.add(todo)
     table_financial_recorders.update_financial_recorders()
     table_financial_recorders.table.update()
-    
-    
-    table_financial_recorders.table.update()
-    
-    tm.sleep(20)
     
     #table_financial_recorders.download_all()
 
