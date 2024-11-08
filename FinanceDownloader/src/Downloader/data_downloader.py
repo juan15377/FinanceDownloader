@@ -18,12 +18,14 @@ class FinanceRecorder():
         self.start_date = start_date
         self.end_date = end_date
         self.period = period
+        self.already_downloaded = False
 
     def download(self):
         # No se utiliza el periodo aquí, ya que se usan las fechas start y end
          
         data = yf.download(self.symbol, start=self.start_date.date, end=self.end_date.date)
         data.index = data.index.tz_localize(None)
+        self.already_downloaded = True
         return data
 
             

@@ -1,12 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['FinanceDownloader/src/GUI.py'],
-    pathex=[],
+    pathex=['FinanceDownloader/src'],  # Incluimos el directorio 'src'
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['Downloader'],  # Usamos solo 'Downloader' ya que es un paquete
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,7 +28,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,  # Mantén False para modo ventana
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
