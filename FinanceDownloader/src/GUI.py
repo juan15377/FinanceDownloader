@@ -299,6 +299,7 @@ import time as tm
 
 def main(page: ft.Page):
     page.expand = False
+    page.theme_mode = ft.ThemeMode.DARK
     page.theme = ft.Theme(color_scheme_seed="green")
     page.update()
     
