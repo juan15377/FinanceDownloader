@@ -13,8 +13,11 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+# Crear el archivo pyz, necesario para empaquetar los scripts en un solo archivo
 pyz = PYZ(a.pure)
 
+# Crear el ejecutable en un solo archivo
 exe = EXE(
     pyz,
     a.scripts,
@@ -34,4 +37,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    onefile=True,  # Aquí habilitamos el empaquetado en un solo archivo
 )
+
+# Asegúrate de que el ejecutable esté empaquetado en un solo archivo
